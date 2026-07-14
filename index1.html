@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>물때 리포트</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy:#0A1F2B; --ink:#132B36; --sand:#EDE3D0; --sand-dim:#B9AF9B;
+    --teal:#3FDDC4; --coral:#E8794A; --line:rgba(237,227,208,0.14);
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--navy); color:var(--sand); font-family:'IBM Plex Sans KR',sans-serif; min-height:100vh; padding-bottom:60px;}
+  .wrap{max-width:640px; margin:0 auto; padding:0 20px;}
+  header{padding:28px 0 18px; border-bottom:1px solid var(--line);}
+  .eyebrow{font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:0.12em; color:var(--teal); text-transform:uppercase;}
+  h1{font-family:'Fraunces',serif; font-weight:600; font-size:30px; margin-top:6px; letter-spacing:-0.01em;}
+  .sub{color:var(--sand-dim); font-size:14px; margin-top:6px; line-height:1.5;}
+
+  .locate-btn{margin-top:18px; width:100%; padding:14px; border-radius:10px; background:var(--teal); color:var(--navy); border:none; font-family:inherit; font-weight:600; font-size:15px; cursor:pointer; transition:transform .15s;}
+  .locate-btn:active{transform:scale(0.98);}
+  .locate-btn:disabled{opacity:0.5;}
+  .locate-btn.secondary{background:transparent; border:1px solid var(--line); color:var(--sand); margin-top:10px; width:auto; flex-shrink:0;}
+  .manual-row{display:flex; gap:8px; margin-top:10px;}
+  .manual-row input{flex:1; min-width:0; padding:14px; border-radius:10px; border:1px solid var(--line); background:var(--ink); color:var(--sand); font-family:inherit; font-size:14px;}
+  .manual-row input::placeholder{color:var(--sand-dim);}
+  .manual-row input:focus{outline:1px solid var(--teal);}
+  .perm-hint{margin-top:10px; font-size:12.5px; color:var(--sand-dim); line-height:1.6; display:none;}
+  .perm-hint.show{display:block;}
+
+  .hero{margin-top:26px; padding:26px 22px; border-radius:16px; background:linear-gradient(160deg,var(--ink),#0d222c); border:1px solid var(--line);}
+  .hero .place{font-size:13px; color:var(--sand-dim); font-family:'IBM Plex Mono',monospace;}
+  .temp-row{display:flex; align-items:baseline; gap:10px; margin-top:10px;}
+  .temp{font-family:'Fraunces',serif; font-weight:700; font-size:64px; line-height:1; color:var(--teal);}
+  .temp-unit{font-family:'IBM Plex Mono',monospace; font-size:20px; color:var(--sand-dim);}
+  .hero-note{margin-top:10px; font-size:13.5px; color:var(--sand-dim); line-height:1.6;}
+  .region-tag{display:inline-block; margin-top:12px; font-size:12px; font-family:'IBM Plex Mono',monospace; color:var(--navy); background:var(--sand); padding:4px 10px; border-radius:20px;}
+
+  .ping{width:14px; height:14px; border-radius:50%; background:var(--teal); display:inline-block; position:relative; margin-right:8px;}
+  .ping::after{content:''; position:absolute; inset:0; border-radius:50%; border:1.5px solid var(--teal); animation:ping 1.6s ease-out infinite;}
+  @keyframes ping{0%{transform:scale(1);opacity:.9;}100%{transform:scale(2.6);opacity:0;}}
+
+  section{margin-top:36px;}
+  .sec-head{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:14px;}
+  .sec-title{font-family:'Fraunces',serif; font-weight:600; font-size:19px;}
+  .sec-count{font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--sand-dim);}
+
+  .fish-card{background:var(--ink); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:10px; cursor:pointer; transition:border-color .15s;}
+  .fish-card:active{border-color:var(--teal);}
+  .fish-head{display:flex; align-items:center; gap:12px;}
+  .fish-emoji{font-size:30px;}
+  .fish-name{font-weight:600; font-size:15.5px;}
+  .fish-season{font-size:12px; color:var(--sand-dim); font-family:'IBM Plex Mono',monospace; margin-top:2px;}
+  .fish-arrow{margin-left:auto; color:var(--sand-dim); transition:transform .2s;}
+  .fish-card.open .fish-arrow{transform:rotate(90deg);}
+  .fish-guide{display:none; margin-top:14px; padding-top:14px; border-top:1px dashed var(--line); font-size:13.5px; line-height:1.7;}
+  .fish-card.open .fish-guide{display:block;}
+  .guide-row{display:flex; gap:8px; margin-bottom:6px;}
+  .guide-label{flex-shrink:0; width:52px; color:var(--teal); font-family:'IBM Plex Mono',monospace; font-size:12px; padding-top:2px;}
+  .guide-val{color:var(--sand);}
+
+  #map{width:100%; height:300px; border-radius:14px; margin-bottom:16px; border:1px solid var(--line); filter:saturate(0.9);}
+  .point-card{background:var(--ink); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:10px;}
+  .point-top{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+  .point-name{font-weight:600; font-size:15px;}
+  .point-type{font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--navy); background:var(--coral); padding:3px 8px; border-radius:20px; white-space:nowrap;}
+  .point-type.shop{background:var(--teal);}
+  .point-note{font-size:13px; margin-top:8px; line-height:1.55; color:var(--sand);}
+  .point-dist{font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--sand-dim); margin-top:6px;}
+
+  /* ---- 미니게임 ---- */
+  .game-box{background:linear-gradient(180deg,#0e2733 0%, #0a1f2b 100%); border:1px solid var(--line); border-radius:16px; padding:20px; overflow:hidden;}
+  .bait-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:12px;}
+  .bait-btn{background:var(--ink); border:1px solid var(--line); border-radius:10px; padding:10px 4px; text-align:center; cursor:pointer; transition:all .15s; font-family:inherit; color:var(--sand);}
+  .bait-btn .b-emoji{font-size:22px; display:block;}
+  .bait-btn .b-name{font-size:11px; margin-top:4px; display:block;}
+  .bait-btn.sel{border-color:var(--teal); background:rgba(63,221,196,0.1);}
+  .cast-btn{margin-top:14px; width:100%; padding:13px; border-radius:10px; background:var(--coral); color:var(--navy); border:none; font-family:inherit; font-weight:600; font-size:15px; cursor:pointer;}
+  .cast-btn:disabled{opacity:0.4;}
+
+  .pond{position:relative; height:220px; margin-top:16px; border-radius:12px; overflow:hidden; background:linear-gradient(180deg,#123240 0%, #0b2531 55%, #081c26 100%);}
+  .wave{position:absolute; left:-20%; width:140%; height:14px; border-radius:50%; background:rgba(63,221,196,0.09);}
+  .wave.w1{top:26px; animation:waveMove 5s ease-in-out infinite;}
+  .wave.w2{top:44px; animation:waveMove 7s ease-in-out infinite reverse;}
+  @keyframes waveMove{0%,100%{transform:translateX(0);}50%{transform:translateX(28px);}}
+
+  .rod{position:absolute; top:-4px; left:12%; width:3px; height:64px; background:var(--sand-dim); transform-origin:top left; transform:rotate(38deg); border-radius:2px;}
+  .fline{position:absolute; top:52px; left:calc(12% + 38px); width:1px; height:0; background:rgba(237,227,208,0.5); transition:height 0.6s ease-in;}
+  .bobber{position:absolute; left:calc(12% + 33px); top:48px; font-size:16px; opacity:0; transition:top .6s ease-in, opacity .3s;}
+  .bobber.floating{animation:bob 1.6s ease-in-out infinite;}
+  @keyframes bob{0%,100%{transform:translateY(0);}50%{transform:translateY(5px);}}
+  .bobber.bite{animation:bite .18s ease-in-out 6;}
+  @keyframes bite{0%,100%{transform:translateY(0);}50%{transform:translateY(9px);}}
+
+  .catch-fish{position:absolute; font-size:44px; left:calc(12% + 12px); bottom:-60px; opacity:0;}
+  .catch-fish.jump{animation:jump 1.3s cubic-bezier(.3,-0.3,.4,1) forwards;}
+  @keyframes jump{
+    0%{bottom:-60px; opacity:0; transform:rotate(0) scale(0.7);}
+    25%{opacity:1;}
+    55%{bottom:130px; transform:rotate(-24deg) scale(1.15);}
+    100%{bottom:96px; opacity:1; transform:rotate(-12deg) scale(1);}
+  }
+  .splash{position:absolute; left:calc(12% + 8px); bottom:30px; font-size:26px; opacity:0;}
+  .splash.go{animation:splash .9s ease-out forwards;}
+  @keyframes splash{0%{opacity:0; transform:scale(.4);}30%{opacity:1;}100%{opacity:0; transform:scale(1.7) translateY(-14px);}}
+
+  .game-msg{margin-top:14px; text-align:center; min-height:52px; font-size:14px; line-height:1.6;}
+  .game-msg .big{font-family:'Fraunces',serif; font-size:19px; font-weight:600; color:var(--teal); display:block; margin-bottom:2px;}
+  .game-msg .miss{color:var(--coral);}
+
+  .empty,.status{text-align:center; padding:34px 10px; color:var(--sand-dim); font-size:14px; line-height:1.7;}
+  .status .ping{margin:0 auto 14px; display:block;}
+  .disclaimer{margin-top:36px; padding-top:16px; border-top:1px solid var(--line); font-size:11.5px; color:var(--sand-dim); line-height:1.7;}
+  a{color:var(--teal);}
+  ::selection{background:var(--teal); color:var(--navy);}
+  @media (prefers-reduced-motion: reduce){ *{animation-duration:.01s !important; transition-duration:.01s !important;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Live Coastal Report</div>
+    <h1>물때 리포트</h1>
+    <div class="sub">내 위치의 실시간 수온, 지금 잡히는 어종과 낚시 가이드, 인근 포인트를 확인하세요.</div>
+    <button class="locate-btn" id="locateBtn">📍 내 위치로 확인하기</button>
+    <div class="manual-row">
+      <input type="text" id="manualInput" placeholder="지역명 입력 (예: 해운대, 주문진, 성산읍)" />
+      <button class="locate-btn secondary" id="manualBtn" type="button">검색</button>
+    </div>
+    <div class="perm-hint" id="permHint">
+      위치 권한이 거부됐어요. 주소창 왼쪽 사이트 설정에서 위치를 "허용"으로 바꾸고 새로고침하거나, 위 입력창에 지역명을 넣어주세요.
+    </div>
+  </header>
+
+  <div id="app"></div>
+
+  <div class="disclaimer">
+    수온은 Open-Meteo Marine API 실시간 데이터입니다. 어종·포인트·가이드는 권역/계절별 참고 정보로, 실제 조황·규제(금어기, 체장 제한)와 다를 수 있으니 출조 전 현지 낚시점에서 재확인하세요.
+  </div>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ===== 어종 DB (미끼/방법/팁 가이드 포함) =====
+const FISH = {
+  gamseongdom:{name:'감성돔',emoji:'🐟',months:[10,11,12,1,2,3,4],bait:['개불','크릴','게'],baitIds:['worm','krill','crab'],method:'갯바위 찌낚시(구멍찌 반유동)',tip:'물색이 살짝 흐린 날, 밑밥 꾸준히. 새벽·해질녘 입질 집중.'},
+  beongeo:{name:'벵에돔',emoji:'🐠',months:[6,7,8,9,10,11],bait:['크릴','빵가루 반죽'],baitIds:['krill'],method:'제로찌 전유동 찌낚시',tip:'밑밥과 미끼 동조가 핵심. 여름엔 상층, 수온 내려가면 깊은 곳.'},
+  nongeo:{name:'농어',emoji:'🎣',months:[5,6,7,8,9,10],bait:['미노우 루어','바이브'],baitIds:['lure'],method:'루어 캐스팅(새벽/야간)',tip:'물골·여밭 주변 유속 있는 곳. 간조 전후 2시간이 골든타임.'},
+  ureok:{name:'우럭(조피볼락)',emoji:'🐡',months:[1,2,3,4,5,6,7,8,9,10,11,12],bait:['청갯지렁이','오징어살','웜'],baitIds:['worm','squid','lure'],method:'배낚시 외줄/다운샷, 방파제 구멍치기',tip:'구조물·암초 바닥 공략. 바닥에서 30cm~1m 띄우기.'},
+  gwangeo:{name:'광어',emoji:'🫓',months:[4,5,6,7,8,9,10,11],bait:['웜(섀드)','미꾸라지'],baitIds:['lure','worm'],method:'다운샷 루어, 생미끼 원투',tip:'모래+암초 경계 지점. 바닥을 콩콩 두드리듯 액션.'},
+  jueo:{name:'주꾸미',emoji:'🐙',months:[9,10,11],bait:['에기(왕눈이)'],baitIds:['egi'],method:'선상 에깅(가을 시즌)',tip:'바닥 찍고 살짝 고패질. 초가을 서해가 최고 시즌.'},
+  galchi:{name:'갈치',emoji:'🔪',months:[7,8,9,10,11],bait:['꽁치살','루어(지그)'],baitIds:['fishcut','lure'],method:'야간 선상/방파제 채비',tip:'집어등 불빛 경계면 공략. 초저녁~자정 피크.'},
+  goDeungeo:{name:'고등어',emoji:'🐟',months:[6,7,8,9,10,11],bait:['크릴','카드채비'],baitIds:['krill'],method:'방파제 카드채비(사비키)',tip:'무리 지나갈 때 연속 히트. 아침저녁 회유 시간 노리기.'},
+  jeoneo:{name:'전갱이',emoji:'🐠',months:[6,7,8,9,10,11,12],bait:['크릴','아지 웜'],baitIds:['krill','lure'],method:'아징(라이트 루어), 카드채비',tip:'가로등 불빛 아래 야간 아징. 1g 내외 지그헤드.'},
+  bongeo:{name:'볼락',emoji:'🐡',months:[11,12,1,2,3,4,5],bait:['청갯지렁이','볼락 웜'],baitIds:['worm','lure'],method:'야간 루어(볼라킹), 민장대',tip:'겨울 밤 상층~중층. 불빛 경계 그늘에 숨어 있음.'},
+  domi:{name:'참돔',emoji:'🌸',months:[4,5,6,9,10,11],bait:['타이라바','크릴'],baitIds:['lure','krill'],method:'선상 타이라바, 찌낚시',tip:'일정한 속도로 감기만. 입질 와도 멈추지 말 것.'},
+  bangeo:{name:'방어',emoji:'💪',months:[11,12,1,2],bait:['지그','미노우'],baitIds:['lure'],method:'지깅/캐스팅(겨울)',tip:'겨울 제주·동해 대물 시즌. 새벽 여명에 폭발적 입질.'},
+  hanchi:{name:'한치/무늬오징어',emoji:'🦑',months:[6,7,8,9,10],bait:['에기'],baitIds:['egi'],method:'에깅(팁런/야간)',tip:'해초+암초 지대. 샤크리 후 폴에서 대부분 입질.'},
+  daegu:{name:'대구',emoji:'🐋',months:[12,1,2],bait:['지그','오징어살'],baitIds:['lure','squid'],method:'선상 지깅(겨울 동해)',tip:'수심 깊은 곳 바닥층. 무거운 지그로 바닥 찍고 고패질.'},
+  ttukji:{name:'도다리',emoji:'🫓',months:[3,4,5],bait:['청갯지렁이'],baitIds:['worm'],method:'원투 처넣기',tip:'봄 도다리. 모래바닥 멀리 던져두고 기다리기.'},
+  mineo:{name:'붕장어(아나고)',emoji:'🐍',months:[5,6,7,8,9],bait:['청갯지렁이','오징어살'],baitIds:['worm','squid'],method:'야간 원투',tip:'해 지고 나서 본격 입질. 채비 여유 있게 여러 대.'},
+};
+
+// ===== 미끼(게임용) =====
+const BAITS = [
+  {id:'worm', name:'갯지렁이', emoji:'🪱'},
+  {id:'krill', name:'크릴', emoji:'🦐'},
+  {id:'lure', name:'루어', emoji:'🎏'},
+  {id:'egi', name:'에기', emoji:'🦑'},
+  {id:'squid', name:'오징어살', emoji:'🍢'},
+  {id:'crab', name:'게', emoji:'🦀'},
+  {id:'fishcut', name:'꽁치살', emoji:'🐟'},
+];
+
+// ===== 권역 데이터 (어종 id + 실제 포인트/낚시점) =====
+const REGIONS = [
+  {id:'incheon', name:'서해 북부 (인천·경기)', match:(la,lo)=> la>=36.9 && lo<=126.9,
+    fish:['ureok','nongeo','gwangeo','jueo','mineo','ttukji'],
+    points:[
+      {name:'영흥도 진두선착장', type:'선착장', lat:37.2536, lon:126.4823, note:'우럭·놀래미 생활낚시, 물때 좋을 때 손맛 꾸준.'},
+      {name:'무의도 광명항 방파제', type:'방파제', lat:37.3703, lon:126.4179, note:'접근 쉬운 수도권 포인트. 원투로 붕장어·우럭.'},
+      {name:'오이도 빨강등대 방파제', type:'방파제', lat:37.3459, lon:126.6867, note:'지하철로 가는 낚시터. 망둥어·붕장어 원투.'},
+      {name:'인천 남항 배터', type:'선상', lat:37.4433, lon:126.5988, note:'우럭·광어 선상 출조 배 다수. 예약 필수.'},
+      {name:'영흥도 낚시프라자', type:'낚시점', lat:37.2591, lon:126.4990, note:'미끼·채비 구입과 현지 조황 문의에 좋음.'},
+    ]},
+  {id:'chungnam', name:'서해 중부 (충남 태안·보령)', match:(la,lo)=> la>=35.9 && la<36.9 && lo<=126.9,
+    fish:['ureok','gwangeo','nongeo','jueo','ttukji','mineo'],
+    points:[
+      {name:'안면도 영목항', type:'방파제', lat:36.3465, lon:126.4278, note:'가을 주꾸미·갑오징어 성지. 선상 출조도 활발.'},
+      {name:'천리포 방파제', type:'방파제', lat:36.8123, lon:126.1442, note:'우럭·노래미 구멍치기, 봄 도다리 원투.'},
+      {name:'대천항 방파제', type:'방파제', lat:36.3316, lon:126.4963, note:'접근성 좋고 시설 편리. 초보 가족 낚시 추천.'},
+      {name:'오천항 선상낚시', type:'선상', lat:36.4324, lon:126.5081, note:'주꾸미·우럭 배 다수. 가을 주말 예약 치열.'},
+      {name:'몽산포 낚시마트', type:'낚시점', lat:36.6672, lon:126.2870, note:'태안권 미끼 보급. 실시간 조황 정보 얻기 좋음.'},
+    ]},
+  {id:'jeonbuk', name:'서해 남부 (군산·부안)', match:(la,lo)=> la>=35.4 && la<35.9 && lo<=126.9,
+    fish:['ureok','gwangeo','nongeo','jueo','galchi','mineo'],
+    points:[
+      {name:'격포항 방파제', type:'방파제', lat:35.6229, lon:126.4642, note:'채석강 옆. 우럭·붕장어, 가을 주꾸미 선상 출항지.'},
+      {name:'비응항 방파제', type:'방파제', lat:35.9401, lon:126.5299, note:'군산권 대표 포인트. 야간 갈치 시즌 인기.'},
+      {name:'궁항 갯바위', type:'갯바위', lat:35.6053, lon:126.4750, note:'감성돔·농어 루어. 물때 확인 필수.'},
+      {name:'격포 수협 앞 낚시점', type:'낚시점', lat:35.6240, lon:126.4680, note:'선상 예약 연결과 미끼 구입.'},
+    ]},
+  {id:'jeonnam', name:'남해 서부 (목포·완도·여수)', match:(la,lo)=> la<35.4 && lo<=127.6 && la>34.0,
+    fish:['gamseongdom','beongeo','nongeo','galchi','domi','hanchi'],
+    points:[
+      {name:'완도 정도리 갯바위', type:'갯바위', lat:34.2934, lon:126.7180, note:'감성돔·벵에돔 명포인트. 구계등 인근.'},
+      {name:'여수 돌산 방죽포 방파제', type:'방파제', lat:34.6472, lon:127.7684, note:'가을 갈치·고등어, 여름 한치 에깅.'},
+      {name:'여수 국동항 선상', type:'선상', lat:34.7325, lon:127.7176, note:'참돔 타이라바·갈치 배 출항 허브.'},
+      {name:'목포 북항 방파제', type:'방파제', lat:34.8062, lon:126.3672, note:'접근 쉬운 도심 포인트. 붕장어·농어.'},
+      {name:'여수낚시백화점', type:'낚시점', lat:34.7404, lon:127.7370, note:'남해서부 최대급 낚시용품. 조황판 운영.'},
+    ]},
+  {id:'gyeongnam', name:'남해 중부 (통영·거제·사천)', match:(la,lo)=> la<35.4 && lo>127.6 && lo<128.9,
+    fish:['gamseongdom','beongeo','domi','hanchi','bongeo','jeoneo'],
+    points:[
+      {name:'통영 영운리 방파제', type:'방파제', lat:34.8146, lon:128.4433, note:'볼락·전갱이 야간 아징 인기.'},
+      {name:'거제 구조라 방파제', type:'방파제', lat:34.7791, lon:128.6963, note:'무늬오징어 에깅 명소. 가을 시즌 붐빔.'},
+      {name:'통영 좌대(해상펜션)', type:'좌대', lat:34.7787, lon:128.4106, note:'가족 단위 편한 낚시. 감성돔·볼락.'},
+      {name:'통영 도남항 선상', type:'선상', lat:34.8286, lon:128.4200, note:'참돔 타이라바 배 다수 출항.'},
+      {name:'통영낚시마트', type:'낚시점', lat:34.8443, lon:128.4238, note:'에기·크릴 등 보급. 좌대 예약 안내.'},
+    ]},
+  {id:'busan', name:'부산·울산권', match:(la,lo)=> lo>=128.9 && lo<129.6 && la<35.8,
+    fish:['gamseongdom','beongeo','goDeungeo','jeoneo','galchi','bongeo'],
+    points:[
+      {name:'태종대 감지해변 갯바위', type:'갯바위', lat:35.0533, lon:129.0865, note:'벵에돔·감성돔. 여름밤 갈치도.'},
+      {name:'오륙도 방파제', type:'방파제', lat:35.0921, lon:129.1237, note:'고등어·전갱이 카드채비 가족낚시.'},
+      {name:'기장 대변항 방파제', type:'방파제', lat:35.2233, lon:129.2226, note:'봄 멸치 시즌, 아징 포인트로도 유명.'},
+      {name:'해운대 미포 선상', type:'선상', lat:35.1594, lon:129.1757, note:'갈치·참돔 배 출항. 도심 접근 최고.'},
+      {name:'부산 남항 낚시프라자', type:'낚시점', lat:35.0834, lon:129.0263, note:'부산권 대형 낚시용품점.'},
+    ]},
+  {id:'pohang', name:'동해 남부 (포항·영덕)', match:(la,lo)=> lo>=129.0 && la>=35.8 && la<37.0,
+    fish:['ureok','gwangeo','jeoneo','bongeo','daegu','hanchi'],
+    points:[
+      {name:'포항 호미곶 방파제', type:'방파제', lat:36.0764, lon:129.5654, note:'가자미 원투, 겨울 학꽁치.'},
+      {name:'구룡포항 방파제', type:'방파제', lat:35.9903, lon:129.5555, note:'아징·에깅 모두 되는 만능 포인트.'},
+      {name:'영덕 강구항 선상', type:'선상', lat:36.3592, lon:129.3903, note:'겨울 대구 지깅 출항지.'},
+      {name:'포항 죽도시장 낚시골목', type:'낚시점', lat:36.0342, lon:129.3654, note:'미끼·채비 저렴하게 보급.'},
+    ]},
+  {id:'gangwon', name:'동해 중부 (강릉·속초)', match:(la,lo)=> lo>=128.5 && la>=37.0,
+    fish:['ureok','gwangeo','jeoneo','nongeo','daegu','hanchi'],
+    points:[
+      {name:'주문진항 방파제', type:'방파제', lat:37.8926, lon:128.8318, note:'황어·가자미 원투, 여름 무늬오징어.'},
+      {name:'속초 동명항 방파제', type:'방파제', lat:38.2119, lon:128.6013, note:'도심 접근 좋은 생활낚시 포인트.'},
+      {name:'강릉 사천진 방파제', type:'방파제', lat:37.8395, lon:128.8785, note:'아징·에깅, 잔잔한 날 가족낚시.'},
+      {name:'주문진 선상낚시', type:'선상', lat:37.8955, lon:128.8290, note:'가자미·대구 배 출항.'},
+      {name:'주문진 바다낚시마트', type:'낚시점', lat:37.8901, lon:128.8265, note:'동해안 조황 정보 허브.'},
+    ]},
+  {id:'jeju', name:'제주권', match:(la,lo)=> la<=34.0 && lo>=126.0 && lo<=127.2,
+    fish:['beongeo','gamseongdom','bangeo','hanchi','galchi','domi'],
+    points:[
+      {name:'차귀도 갯바위(배편)', type:'갯바위', lat:33.3095, lon:126.1489, note:'벵에돔 성지. 도항선 타고 진입.'},
+      {name:'한림항 방파제', type:'방파제', lat:33.4148, lon:126.2569, note:'한치 에깅, 야간 갈치.'},
+      {name:'성산포 방파제', type:'방파제', lat:33.4744, lon:126.9273, note:'일출봉 옆. 벵에돔·독가시치.'},
+      {name:'서귀포 선상(겨울 방어)', type:'선상', lat:33.2401, lon:126.5610, note:'11~2월 대방어 지깅 메카.'},
+      {name:'제주 탑동 낚시백화점', type:'낚시점', lat:33.5188, lon:126.5219, note:'제주권 최대 용품점. 도항선 정보.'},
+    ]},
+];
+
+function findRegion(lat, lon){
+  for(const r of REGIONS){ if(r.match(lat,lon)) return r; }
+  // 못 찾으면 포인트 최근접 권역
+  let best=null, bd=1e9;
+  for(const r of REGIONS){ for(const p of r.points){
+    const d=(p.lat-lat)**2+(p.lon-lon)**2; if(d<bd){bd=d;best=r;}
+  }}
+  return best;
+}
+function distKm(a,b,c,d){
+  const R=6371, dLa=(c-a)*Math.PI/180, dLo=(d-b)*Math.PI/180;
+  const h=Math.sin(dLa/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dLo/2)**2;
+  return R*2*Math.atan2(Math.sqrt(h),Math.sqrt(1-h));
+}
+function seasonLabel(months){
+  const names=['','1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+  if(months.length>=11) return '연중';
+  // 연속 구간 표기 단순화
+  return months.map(m=>names[m]).join('·');
+}
+
+// ===== 공통 =====
+const app=document.getElementById('app');
+const locateBtn=document.getElementById('locateBtn');
+const manualBtn=document.getElementById('manualBtn');
+const manualInput=document.getElementById('manualInput');
+const permHint=document.getElementById('permHint');
+let map=null;
+
+function statusView(m){app.innerHTML=`<div class="status"><span class="ping"></span>${m}</div>`;}
+function emptyView(m){app.innerHTML=`<div class="empty">${m}</div>`;}
+
+async function reverseGeocode(lat,lon){
+  try{
+    const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=12&accept-language=ko`);
+    const d=await r.json();
+    return d.address?(d.address.city||d.address.county||d.address.state||d.display_name.split(',')[0]):`${lat.toFixed(3)}, ${lon.toFixed(3)}`;
+  }catch(e){return `${lat.toFixed(3)}, ${lon.toFixed(3)}`;}
+}
+async function geocodePlace(query){
+  const tryOnce=async q=>{
+    try{
+      const r=await fetch(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=5&countrycodes=kr&accept-language=ko&q=${encodeURIComponent(q)}`);
+      const d=await r.json();
+      if(!d||!d.length) return null;
+      const good=d.find(x=>/village|town|hamlet|suburb|city_district|neighbourhood|administrative|islet|island/.test(x.type))||d[0];
+      return {lat:parseFloat(good.lat), lon:parseFloat(good.lon)};
+    }catch(e){return null;}
+  };
+  return (await tryOnce(query))||(await tryOnce(`대한민국 ${query}`));
+}
+async function getSeaTemp(lat,lon){
+  try{
+    const r=await fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&current=sea_surface_temperature&timezone=auto`);
+    const d=await r.json();
+    return (d.current&&d.current.sea_surface_temperature!=null)?d.current.sea_surface_temperature:null;
+  }catch(e){return null;}
+}
+
+// ===== 메인 렌더 =====
+async function run(lat,lon){
+  statusView('위치를 확인하고 실시간 수온을 불러오는 중...');
+  const [placeName, sst] = await Promise.all([reverseGeocode(lat,lon), getSeaTemp(lat,lon)]);
+  const region = findRegion(lat,lon);
+  const month = new Date().getMonth()+1;
+  const inSeason = region.fish.map(id=>({id,...FISH[id]})).filter(f=>f.months.includes(month));
+  const offSeason = region.fish.map(id=>({id,...FISH[id]})).filter(f=>!f.months.includes(month));
+  const sortedPoints = region.points.map(p=>({...p, dist:distKm(lat,lon,p.lat,p.lon)})).sort((a,b)=>a.dist-b.dist);
+
+  app.innerHTML=`
+    <div class="hero">
+      <div class="place">${placeName} · ${lat.toFixed(3)}, ${lon.toFixed(3)}</div>
+      <div class="temp-row">
+        <div class="temp">${sst!=null?sst.toFixed(1):'--'}</div>
+        <div class="temp-unit">°C 표층 수온</div>
+      </div>
+      <div class="hero-note">${sst!=null?'Open-Meteo Marine 실시간 관측 기준':'이 좌표는 관측 격자 밖이거나 내륙일 수 있어요. 해안 지명으로 다시 검색해보세요.'}</div>
+      <span class="region-tag">📍 ${region.name}</span>
+    </div>
+
+    <section>
+      <div class="sec-head">
+        <div class="sec-title">🎣 ${month}월, 지금 잡히는 어종</div>
+        <div class="sec-count">${inSeason.length}종 · 탭하면 가이드</div>
+      </div>
+      <div id="fishList"></div>
+      ${offSeason.length?`<div class="sec-head" style="margin-top:20px"><div class="sec-count">이 지역 다른 시즌 어종: ${offSeason.map(f=>f.emoji+f.name).join(' ')}</div></div>`:''}
+    </section>
+
+    <section>
+      <div class="sec-head">
+        <div class="sec-title">🗺️ 인근 포인트 & 낚시점</div>
+        <div class="sec-count">${sortedPoints.length}곳</div>
+      </div>
+      <div id="map"></div>
+      <div id="pointList"></div>
+    </section>
+
+    <section>
+      <div class="sec-head">
+        <div class="sec-title">🎮 손맛 시뮬레이터</div>
+        <div class="sec-count">미끼 선택 → 캐스팅</div>
+      </div>
+      <div class="game-box">
+        <div style="font-size:13px; color:var(--sand-dim);">지금 이 바다에서 쓸 미끼를 골라보세요. 어종마다 좋아하는 미끼가 달라요.</div>
+        <div class="bait-grid" id="baitGrid"></div>
+        <button class="cast-btn" id="castBtn" disabled>🎣 캐스팅!</button>
+        <div class="pond" id="pond">
+          <div class="wave w1"></div><div class="wave w2"></div>
+          <div class="rod"></div>
+          <div class="fline" id="fline"></div>
+          <div class="bobber" id="bobber">🔴</div>
+          <div class="splash" id="splash">💦</div>
+          <div class="catch-fish" id="catchFish">🐟</div>
+        </div>
+        <div class="game-msg" id="gameMsg">미끼를 선택하면 캐스팅할 수 있어요.</div>
+      </div>
+    </section>
+  `;
+
+  // 어종 카드
+  const fishList=document.getElementById('fishList');
+  const listToShow = inSeason.length?inSeason:region.fish.map(id=>({id,...FISH[id]}));
+  if(!inSeason.length){
+    fishList.innerHTML=`<div class="empty" style="padding:16px">이번 달 주력 어종 데이터가 없어 연중 어종을 보여드려요.</div>`;
+  }
+  listToShow.forEach(f=>{
+    const card=document.createElement('div');
+    card.className='fish-card';
+    card.innerHTML=`
+      <div class="fish-head">
+        <div class="fish-emoji">${f.emoji}</div>
+        <div>
+          <div class="fish-name">${f.name}</div>
+          <div class="fish-season">시즌 ${seasonLabel(f.months)}</div>
+        </div>
+        <div class="fish-arrow">▶</div>
+      </div>
+      <div class="fish-guide">
+        <div class="guide-row"><div class="guide-label">미끼</div><div class="guide-val">${f.bait.join(', ')}</div></div>
+        <div class="guide-row"><div class="guide-label">방법</div><div class="guide-val">${f.method}</div></div>
+        <div class="guide-row"><div class="guide-label">팁</div><div class="guide-val">${f.tip}</div></div>
+      </div>`;
+    card.addEventListener('click',()=>card.classList.toggle('open'));
+    fishList.appendChild(card);
+  });
+
+  // 지도
+  map=L.map('map',{scrollWheelZoom:false}).setView([lat,lon],10);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(map);
+  L.circleMarker([lat,lon],{radius:7,color:'#3FDDC4',fillColor:'#3FDDC4',fillOpacity:0.9}).addTo(map).bindPopup('내 위치');
+  const bounds=[[lat,lon]];
+  const pointList=document.getElementById('pointList');
+  sortedPoints.forEach(p=>{
+    L.marker([p.lat,p.lon]).addTo(map).bindPopup(`<b>${p.name}</b><br>${p.note}`);
+    bounds.push([p.lat,p.lon]);
+    pointList.insertAdjacentHTML('beforeend',`
+      <div class="point-card">
+        <div class="point-top">
+          <div class="point-name">${p.name}</div>
+          <div class="point-type ${p.type==='낚시점'?'shop':''}">${p.type}</div>
+        </div>
+        <div class="point-note">${p.note}</div>
+        <div class="point-dist">내 위치에서 약 ${p.dist<1?(p.dist*1000).toFixed(0)+'m':p.dist.toFixed(1)+'km'}</div>
+      </div>`);
+  });
+  map.fitBounds(bounds,{padding:[30,30]});
+
+  // ===== 미니게임 =====
+  setupGame(listToShow);
+}
+
+function setupGame(fishPool){
+  const baitGrid=document.getElementById('baitGrid');
+  const castBtn=document.getElementById('castBtn');
+  const gameMsg=document.getElementById('gameMsg');
+  const fline=document.getElementById('fline');
+  const bobber=document.getElementById('bobber');
+  const splash=document.getElementById('splash');
+  const catchFish=document.getElementById('catchFish');
+  let selBait=null, busy=false;
+
+  BAITS.forEach(b=>{
+    const btn=document.createElement('button');
+    btn.className='bait-btn'; btn.type='button';
+    btn.innerHTML=`<span class="b-emoji">${b.emoji}</span><span class="b-name">${b.name}</span>`;
+    btn.addEventListener('click',()=>{
+      if(busy) return;
+      baitGrid.querySelectorAll('.bait-btn').forEach(x=>x.classList.remove('sel'));
+      btn.classList.add('sel'); selBait=b.id; castBtn.disabled=false;
+      gameMsg.innerHTML=`${b.emoji} ${b.name} 장착 완료. 캐스팅해보세요!`;
+    });
+    baitGrid.appendChild(btn);
+  });
+
+  castBtn.addEventListener('click',()=>{
+    if(!selBait||busy) return;
+    busy=true; castBtn.disabled=true;
+    // 리셋
+    catchFish.classList.remove('jump'); splash.classList.remove('go');
+    bobber.classList.remove('bite','floating'); bobber.style.opacity='0';
+    fline.style.height='0';
+    gameMsg.innerHTML='캐스팅... 🌊';
+
+    // 1) 줄 내려가고 찌 뜨기
+    setTimeout(()=>{
+      fline.style.height='70px';
+      bobber.style.top='112px'; bobber.style.opacity='1';
+      setTimeout(()=>bobber.classList.add('floating'), 650);
+      gameMsg.innerHTML='입질을 기다리는 중...';
+    }, 250);
+
+    // 2) 입질 → 결과
+    const waitMs = 2200 + Math.random()*2300;
+    setTimeout(()=>{
+      bobber.classList.remove('floating');
+      bobber.classList.add('bite');
+      setTimeout(()=>{
+        // 미끼 선호 어종 가중 추첨 (25% 꽝)
+        const liked=fishPool.filter(f=>f.baitIds&&f.baitIds.includes(selBait));
+        const isMiss = Math.random()<(liked.length? 0.22 : 0.55);
+        bobber.classList.remove('bite'); bobber.style.opacity='0'; fline.style.height='0';
+        if(isMiss){
+          splash.classList.add('go');
+          gameMsg.innerHTML=`<span class="miss">이런, 놓쳤어요! 💦</span> 미끼를 바꾸거나 다시 던져보세요.`;
+        }else{
+          const pool = liked.length?liked:fishPool;
+          const f = pool[Math.floor(Math.random()*pool.length)];
+          catchFish.textContent=f.emoji;
+          splash.classList.add('go');
+          catchFish.classList.add('jump');
+          gameMsg.innerHTML=`<span class="big">${f.emoji} ${f.name} 낚음!</span>${f.method} · 미끼: ${f.bait[0]}<br><span style="color:var(--sand-dim); font-size:12.5px;">${f.tip}</span>`;
+        }
+        busy=false; castBtn.disabled=false;
+      }, 1200);
+    }, waitMs);
+  });
+}
+
+// ===== 이벤트 =====
+locateBtn.addEventListener('click',()=>{
+  if(!navigator.geolocation){
+    permHint.classList.add('show');
+    emptyView('이 브라우저는 위치 정보를 지원하지 않아요. 위 입력창에 지역명을 넣어주세요.');
+    return;
+  }
+  locateBtn.disabled=true;
+  statusView('위치 권한을 확인하는 중... (권한 팝업을 허용해주세요)');
+  navigator.geolocation.getCurrentPosition(
+    p=>{locateBtn.disabled=false; permHint.classList.remove('show'); run(p.coords.latitude,p.coords.longitude);},
+    e=>{locateBtn.disabled=false; permHint.classList.add('show'); emptyView('위치를 가져오지 못했어요. 위 입력창에 지역명을 넣어 검색해주세요.'); manualInput.focus();},
+    {enableHighAccuracy:true, timeout:10000}
+  );
+});
+async function doManualSearch(){
+  const q=manualInput.value.trim();
+  if(!q){manualInput.focus(); return;}
+  statusView('입력한 지역을 찾는 중...');
+  const c=await geocodePlace(q);
+  if(c) run(c.lat,c.lon);
+  else emptyView('해당 지역을 찾지 못했어요. 다른 이름(인근 큰 동네)으로 다시 시도해보세요.');
+}
+manualBtn.addEventListener('click',doManualSearch);
+manualInput.addEventListener('keydown',e=>{if(e.key==='Enter')doManualSearch();});
+
+emptyView('위 버튼을 눌러 시작하세요. 위치 정보는 저장되지 않고 이 화면에서만 사용돼요.');
+
+</script>
+</body>
+</html>
